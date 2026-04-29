@@ -8,7 +8,8 @@ import torch
 from isaaclab.envs.mdp.commands import UniformVelocityCommand, UniformVelocityCommandCfg
 from isaaclab.utils import configclass
 
-if False:  # TYPE_CHECKING
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
@@ -20,7 +21,7 @@ class UniformVelocityHeightCommandCfg(UniformVelocityCommandCfg):
 
     @configclass
     class Ranges(UniformVelocityCommandCfg.Ranges):
-        height: tuple = MISSING
+        height: tuple[float, float] = MISSING
         """Min and max target base height (m). e.g. (0.15, 0.30)"""
 
 
@@ -29,6 +30,10 @@ class UniformVelocityHeightCommand(UniformVelocityCommand):
 
     Outputs command tensor of shape (N, 4): [vx, vy, omega, h_cmd].
     The height is sampled uniformly from cfg.ranges.height.
+
+    Note: standing environments (10% by default) have their velocity command zeroed by the
+    parent class on each update step, but h_cmd retains its sampled value — this is
+    intentional, as the policy should learn to regulate height even when stationary.
     """
 
     cfg: UniformVelocityHeightCommandCfg
