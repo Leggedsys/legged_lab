@@ -33,7 +33,7 @@ def test_env_cfg_importable():
     assert cfg.episode_length_s == pytest.approx(20.0)
     assert hasattr(cfg.scene, "height_scanner")
     assert hasattr(cfg.commands.base_velocity.ranges, "height")
-    assert cfg.commands.base_velocity.ranges.height == (0.15, 0.30)
+    assert cfg.commands.base_velocity.ranges.height == (0.24, 0.32)
 
 
 def test_reward_cfg_has_height_tracking():

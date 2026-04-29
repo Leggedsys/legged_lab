@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import SceneEntityCfg
 
-__all__ = ["joint_pos_target_l2", "track_height_exp", "foot_slip"]
+__all__ = ["joint_pos_target_l2", "track_height_exp", "foot_slip", "prolonged_air_penalty"]
 
 
 def joint_pos_target_l2(
@@ -96,3 +96,27 @@ def foot_slip(
     foot_speed = foot_lin_vel.norm(dim=-1)  # (N, F)
 
     return _foot_slip_impl(foot_speed, in_contact)
+
+
+def prolonged_air_penalty(
+    env: "ManagerBasedRLEnv",
+    sensor_cfg: "SceneEntityCfg" = None,
+    threshold: float = 0.5,
+) -> torch.Tensor:
+    """Penalize each foot that has been continuously airborne beyond threshold seconds.
+
+    Encourages all feet to periodically make ground contact, breaking 3-legged gaits.
+    The penalty grows linearly with excess air time, so a permanently suspended leg
+    accumulates a large per-step cost without constraining normal swing amplitude.
+    """
+    from isaaclab.managers import SceneEntityCfg as _SceneEntityCfg
+    from isaaclab.sensors import ContactSensor
+
+    if sensor_cfg is None:
+        sensor_cfg = _SceneEntityCfg("contact_forces", body_names=".*_foot")
+
+    sensor: ContactSensor = env.scene[sensor_cfg.name]
+    # current_air_time: (N, num_bodies) — seconds each body has been continuously in air
+    current_air_time = sensor.data.current_air_time[:, sensor_cfg.body_ids]
+    excess = (current_air_time - threshold).clamp(min=0.0)  # (N, F)
+    return excess.sum(dim=1)

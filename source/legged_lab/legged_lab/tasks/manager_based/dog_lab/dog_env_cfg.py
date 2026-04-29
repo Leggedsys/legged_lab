@@ -437,6 +437,14 @@ class DogWalkV2RewardsCfg:
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
     joint_deviation = RewTerm(func=mdp.joint_deviation_l1, weight=-0.005)
+    prolonged_air = RewTerm(
+        func=mdp.prolonged_air_penalty,
+        weight=-0.5,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
+            "threshold": 0.5,
+        },
+    )
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
         weight=-2.0,
@@ -478,3 +486,5 @@ class DogWalkV2EnvCfg(ManagerBasedRLEnvCfg):
         self.events.add_base_mass.params["mass_distribution_params"] = (-1.5, 1.5)
         self.events.base_external_force_torque.params["force_range"] = (0.0, 25.0)
         self.events.base_external_force_torque.params["torque_range"] = (0.0, 2.0)
+        # 放宽关节初始化范围，迫使 policy 从各种腿部姿态中恢复，避免三腿局部最优
+        self.events.reset_robot_joints.params["position_range"] = (0.5, 1.5)

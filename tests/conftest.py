@@ -801,6 +801,7 @@ _mdp_func_names = [
     "action_rate_l2", "ang_vel_xy_l2", "apply_external_force_torque",
     "bad_orientation", "base_ang_vel", "base_height_l2", "base_lin_vel",
     "feet_air_time", "flat_orientation_l2", "foot_slip", "generated_commands",
+    "prolonged_air_penalty",
     "height_scan", "illegal_contact", "is_alive", "joint_acc_l2",
     "joint_deviation_l1", "joint_pos_rel", "joint_torques_l2",
     "joint_vel_rel", "last_action", "lin_vel_z_l2", "projected_gravity",
