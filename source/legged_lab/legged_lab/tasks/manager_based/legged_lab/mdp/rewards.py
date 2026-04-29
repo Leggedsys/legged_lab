@@ -12,6 +12,8 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import SceneEntityCfg
 
+__all__ = ["joint_pos_target_l2", "track_height_exp", "foot_slip"]
+
 
 def joint_pos_target_l2(
     env: "ManagerBasedRLEnv", target: float, asset_cfg: "SceneEntityCfg"
@@ -28,17 +30,6 @@ def joint_pos_target_l2(
     return torch.sum(torch.square(joint_pos - target), dim=1)
 
 
-def enable_command_range(
-    env: "ManagerBasedRLEnv", env_ids, old_value, target_value, num_steps: int
-):
-    """Switch a command range to the target value after the given number of steps."""
-    from isaaclab.envs.mdp import modify_env_param
-
-    if env.common_step_counter > num_steps:
-        return target_value
-    return modify_env_param.NO_CHANGE
-
-
 def _track_height_exp_impl(
     current_height: torch.Tensor, target_height: torch.Tensor, std: float
 ) -> torch.Tensor:
@@ -53,14 +44,21 @@ def track_height_exp(
     command_name: str,
     asset_cfg: "SceneEntityCfg" = None,
 ) -> torch.Tensor:
-    """Exponential reward for tracking the height command (4th dim of velocity command)."""
+    """Exponential reward for tracking the height command (4th dim of velocity command).
+
+    Requires the command tensor to have at least 4 columns; column 3 is the height
+    target (h_cmd from UniformVelocityHeightCommand).
+    """
     from isaaclab.managers import SceneEntityCfg as _SceneEntityCfg
     from isaaclab.assets import Articulation
 
     if asset_cfg is None:
         asset_cfg = _SceneEntityCfg("robot")
     asset: Articulation = env.scene[asset_cfg.name]
-    command = env.command_manager.get_command(command_name)  # (N, 4)
+    command = env.command_manager.get_command(command_name)  # (N, >=4)
+    assert command.shape[1] >= 4, (
+        f"track_height_exp requires command with >=4 dims, got shape {command.shape}"
+    )
     target_height = command[:, 3]
     current_height = asset.data.root_pos_w[:, 2]
     return _track_height_exp_impl(current_height, target_height, std)
