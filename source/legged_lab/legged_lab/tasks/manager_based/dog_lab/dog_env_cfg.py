@@ -470,6 +470,8 @@ class DogWalkV2EnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.scene.terrain = FLAT_TERRAIN_IMPORTER_CFG
         self.sim.physics_material = self.scene.terrain.physics_material
+        # terrain_levels_vel requires generator terrain; disable for flat Phase 1
+        self.curriculum = None
 
         self.events.physics_material.params["static_friction_range"] = (0.4, 1.2)
         self.events.physics_material.params["dynamic_friction_range"] = (0.3, 1.0)
