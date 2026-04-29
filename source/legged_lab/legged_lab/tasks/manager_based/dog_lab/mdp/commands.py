@@ -13,18 +13,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
-@configclass
-class UniformVelocityHeightCommandCfg(UniformVelocityCommandCfg):
-    """Extends velocity command with a uniform height command (4th dimension)."""
-
-    class_type: type = None  # set below after class definition
-
-    @configclass
-    class Ranges(UniformVelocityCommandCfg.Ranges):
-        height: tuple[float, float] = MISSING
-        """Min and max target base height (m). e.g. (0.15, 0.30)"""
-
-
 class UniformVelocityHeightCommand(UniformVelocityCommand):
     """Velocity command extended with a height component.
 
@@ -46,7 +34,7 @@ class UniformVelocityHeightCommand(UniformVelocityCommand):
 
     @staticmethod
     def _build_command_buffer():
-        """Marker method for testing -- confirms class is defined."""
+        """Marker method for testing — confirms class is defined."""
         pass
 
     def _resample_command(self, env_ids: Sequence[int]):
@@ -60,5 +48,13 @@ class UniformVelocityHeightCommand(UniformVelocityCommand):
         return torch.cat([self.vel_command_b, self.h_command.unsqueeze(1)], dim=1)
 
 
-# Wire cfg to class
-UniformVelocityHeightCommandCfg.class_type = UniformVelocityHeightCommand
+@configclass
+class UniformVelocityHeightCommandCfg(UniformVelocityCommandCfg):
+    """Extends velocity command with a uniform height command (4th dimension)."""
+
+    class_type: type = UniformVelocityHeightCommand
+
+    @configclass
+    class Ranges(UniformVelocityCommandCfg.Ranges):
+        height: tuple[float, float] = MISSING
+        """Min and max target base height (m). e.g. (0.15, 0.30)"""
