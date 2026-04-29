@@ -64,8 +64,8 @@ class ActionsCfg:
             "^(FL|FR)_calf_joint$",
         ],
         scale={
-            ".*_hip_joint": 0.3,
-            ".*_thigh_joint": 0.3,
+            ".*_hip_joint": 0.25,
+            ".*_thigh_joint": 0.20,   # default=0.7, soft_limit≈0.72 — 0.3 would hit limit
             ".*_calf_joint": 0.25,
         },
         use_default_offset=True,
@@ -78,8 +78,8 @@ class ActionsCfg:
             "^(RL|RR)_calf_joint$",
         ],
         scale={
-            ".*_hip_joint": 0.3,
-            ".*_thigh_joint": 0.3,
+            ".*_hip_joint": 0.25,
+            ".*_thigh_joint": 0.20,   # same fix
             ".*_calf_joint": 0.25,
         },
         use_default_offset=True,
@@ -391,7 +391,7 @@ class DogWalkV2CommandsCfg:
             lin_vel_y=(-0.3, 0.3),
             ang_vel_z=(-0.8, 0.8),
             heading=(0.0, 0.0),
-            height=(0.15, 0.30),
+            height=(0.24, 0.32),   # nominal=0.28m; (0.15,0.30) averaged too low
         ),
     )
 
@@ -415,7 +415,7 @@ class DogWalkV2RewardsCfg:
     )
     feet_air_time = RewTerm(
         func=mdp.feet_air_time,
-        weight=0.3,
+        weight=0.5,
         params={
             "command_name": "base_velocity",
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
@@ -431,8 +431,8 @@ class DogWalkV2RewardsCfg:
         },
     )
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
-    ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.1)
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-0.5)
+    ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.2)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0)
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-1e-5)
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
