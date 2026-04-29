@@ -21,6 +21,7 @@ _SRC_ROOT = Path(__file__).parent.parent / "source/legged_lab/legged_lab/tasks/m
 
 _REWARDS_FILE = _SRC_ROOT / "legged_lab/mdp/rewards.py"
 _COMMANDS_FILE = _SRC_ROOT / "dog_lab/mdp/commands.py"
+_TERRAINS_FILE = _SRC_ROOT / "dog_lab/terrains.py"
 
 # ---------------------------------------------------------------------------
 # Inject stub package hierarchy into sys.modules so that the dotted-path
@@ -188,3 +189,170 @@ if _COMMANDS_MODULE_NAME not in sys.modules:
     _spec.loader.exec_module(_mod)
     # attach as attribute on parent stub
     sys.modules["legged_lab.tasks.manager_based.dog_lab.mdp"].commands = _mod
+
+# ---------------------------------------------------------------------------
+# Stubs for isaaclab terrain classes needed by terrains.py
+#
+# terrains.py imports:
+#   import isaaclab.sim as sim_utils
+#   from isaaclab.terrains import TerrainGeneratorCfg, TerrainImporterCfg
+#   from isaaclab.terrains.height_field import Hf*Cfg classes
+#   from isaaclab.terrains.trimesh import MeshPlaneTerrainCfg
+#
+# These are pure-Python dataclasses that don't need Isaac Sim at runtime, but
+# their parent __init__.py imports omni.log.  We stub the modules here.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class _SubTerrainBaseCfgStub:
+    proportion: float = 1.0
+    size: tuple = (10.0, 10.0)
+    flat_patch_sampling: object = None
+
+
+@dataclass
+class _MeshPlaneTerrainCfgStub(_SubTerrainBaseCfgStub):
+    pass
+
+
+@dataclass
+class _HfTerrainBaseCfgStub(_SubTerrainBaseCfgStub):
+    border_width: float = 0.0
+    horizontal_scale: float = 0.1
+    vertical_scale: float = 0.005
+    slope_threshold: object = None
+
+
+@dataclass
+class _HfRandomUniformTerrainCfgStub(_HfTerrainBaseCfgStub):
+    noise_range: tuple = None
+    noise_step: float = None
+    downsampled_scale: object = None
+
+
+@dataclass
+class _HfPyramidSlopedTerrainCfgStub(_HfTerrainBaseCfgStub):
+    slope_range: tuple = None
+    platform_width: float = 1.0
+    inverted: bool = False
+
+
+@dataclass
+class _HfInvertedPyramidSlopedTerrainCfgStub(_HfPyramidSlopedTerrainCfgStub):
+    inverted: bool = True
+
+
+@dataclass
+class _HfPyramidStairsTerrainCfgStub(_HfTerrainBaseCfgStub):
+    step_height_range: tuple = None
+    step_width: float = None
+    platform_width: float = 1.0
+    inverted: bool = False
+
+
+@dataclass
+class _HfInvertedPyramidStairsTerrainCfgStub(_HfPyramidStairsTerrainCfgStub):
+    inverted: bool = True
+
+
+@dataclass
+class _HfSteppingStonesTerrainCfgStub(_HfTerrainBaseCfgStub):
+    stone_height_max: float = None
+    stone_width_range: tuple = None
+    stone_distance_range: tuple = None
+    holes_depth: float = -10.0
+    platform_width: float = 1.0
+
+
+@dataclass
+class _TerrainGeneratorCfgStub:
+    seed: object = None
+    size: tuple = None
+    border_width: float = 0.0
+    border_height: float = 1.0
+    num_rows: int = 1
+    num_cols: int = 1
+    horizontal_scale: float = 0.1
+    vertical_scale: float = 0.005
+    slope_threshold: object = 0.75
+    use_cache: bool = False
+    cache_dir: str = "/tmp/isaaclab/terrains"
+    sub_terrains: object = None
+    difficulty_range: tuple = (0.0, 1.0)
+    curriculum: bool = False
+    color_scheme: str = "none"
+
+
+@dataclass
+class _RigidBodyMaterialCfgStub:
+    static_friction: float = 0.5
+    dynamic_friction: float = 0.5
+    restitution: float = 0.0
+    friction_combine_mode: str = "average"
+    restitution_combine_mode: str = "average"
+
+
+@dataclass
+class _TerrainImporterCfgStub:
+    prim_path: str = None
+    terrain_type: str = "generator"
+    terrain_generator: object = None
+    max_init_terrain_level: object = None
+    collision_group: int = -1
+    physics_material: object = None
+    debug_vis: bool = False
+    num_envs: int = 1
+    env_spacing: object = None
+    usd_path: object = None
+    visual_material: object = None
+
+
+# Build the stub modules for isaaclab.terrains and isaaclab.sim
+_isaaclab_sim_stub = _make_stub_module(
+    "isaaclab.sim",
+    RigidBodyMaterialCfg=_RigidBodyMaterialCfgStub,
+)
+
+_isaaclab_terrains_stub = _make_stub_module(
+    "isaaclab.terrains",
+    TerrainGeneratorCfg=_TerrainGeneratorCfgStub,
+    TerrainImporterCfg=_TerrainImporterCfgStub,
+)
+
+_isaaclab_hf_stub = _make_stub_module(
+    "isaaclab.terrains.height_field",
+    HfRandomUniformTerrainCfg=_HfRandomUniformTerrainCfgStub,
+    HfPyramidSlopedTerrainCfg=_HfPyramidSlopedTerrainCfgStub,
+    HfInvertedPyramidSlopedTerrainCfg=_HfInvertedPyramidSlopedTerrainCfgStub,
+    HfPyramidStairsTerrainCfg=_HfPyramidStairsTerrainCfgStub,
+    HfInvertedPyramidStairsTerrainCfg=_HfInvertedPyramidStairsTerrainCfgStub,
+    HfSteppingStonesTerrainCfg=_HfSteppingStonesTerrainCfgStub,
+)
+
+_isaaclab_trimesh_stub = _make_stub_module(
+    "isaaclab.terrains.trimesh",
+    MeshPlaneTerrainCfg=_MeshPlaneTerrainCfgStub,
+)
+
+_terrain_stub_modules = {
+    "isaaclab.sim": _isaaclab_sim_stub,
+    "isaaclab.terrains": _isaaclab_terrains_stub,
+    "isaaclab.terrains.height_field": _isaaclab_hf_stub,
+    "isaaclab.terrains.trimesh": _isaaclab_trimesh_stub,
+}
+for _name, _mod in _terrain_stub_modules.items():
+    if _name not in sys.modules:
+        sys.modules[_name] = _mod
+
+# ---------------------------------------------------------------------------
+# Load terrains.py directly from disk and register under the expected name
+# ---------------------------------------------------------------------------
+_TERRAINS_MODULE_NAME = "legged_lab.tasks.manager_based.dog_lab.terrains"
+
+if _TERRAINS_MODULE_NAME not in sys.modules:
+    _spec = importlib.util.spec_from_file_location(_TERRAINS_MODULE_NAME, _TERRAINS_FILE)
+    _mod = importlib.util.module_from_spec(_spec)
+    sys.modules[_TERRAINS_MODULE_NAME] = _mod
+    _spec.loader.exec_module(_mod)
+    # attach as attribute on parent stub
+    sys.modules["legged_lab.tasks.manager_based.dog_lab"].terrains = _mod
