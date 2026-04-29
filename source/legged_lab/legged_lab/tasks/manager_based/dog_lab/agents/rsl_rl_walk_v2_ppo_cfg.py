@@ -1,36 +1,21 @@
 from isaaclab.utils import configclass
-from isaaclab_rl.rsl_rl import (
-    RslRlOnPolicyRunnerCfg,
-    RslRlPpoActorCriticCfg,
-    RslRlPpoAlgorithmCfg,
-)
+
+from legged_lab.tasks.manager_based.dog_lab.agents.rsl_rl_ppo_cfg import DogPPORunnerCfg
 
 
 @configclass
-class DogWalkV2PPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class DogWalkV2PPORunnerCfg(DogPPORunnerCfg):
     experiment_name = "dog_locomotion_walk_v2"
     max_iterations = 5000
     num_steps_per_env = 24
     save_interval = 200
     empirical_normalization = True
 
-    policy = RslRlPpoActorCriticCfg(
-        init_noise_std=0.8,
-        actor_hidden_dims=[512, 256, 128],
-        critic_hidden_dims=[512, 256, 128],
-        activation="elu",
-    )
-    algorithm = RslRlPpoAlgorithmCfg(
-        value_loss_coef=1.0,
-        use_clipped_value_loss=True,
-        clip_param=0.2,
-        entropy_coef=0.01,
-        num_learning_epochs=5,
-        num_mini_batches=4,
-        learning_rate=1e-3,
-        schedule="fixed",
-        gamma=0.99,
-        lam=0.95,
-        desired_kl=0.01,
-        max_grad_norm=1.0,
-    )
+    def __post_init__(self):
+        super().__post_init__()
+        self.policy.init_noise_std = 0.8
+        self.policy.actor_hidden_dims = [512, 256, 128]
+        self.policy.critic_hidden_dims = [512, 256, 128]
+        self.algorithm.entropy_coef = 0.01        # 10× base default — prevents premature convergence
+        self.algorithm.learning_rate = 1e-3
+        self.algorithm.schedule = "fixed"          # prevents LR→0 collapse seen in prior runs
