@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import SceneEntityCfg
 
-__all__ = ["joint_pos_target_l2", "track_height_exp", "foot_slip", "prolonged_air_penalty"]
+__all__ = ["joint_pos_target_l2", "track_height_exp", "foot_slip", "prolonged_air_penalty", "trot_gait_reward"]
 
 
 def joint_pos_target_l2(
@@ -120,3 +120,34 @@ def prolonged_air_penalty(
     current_air_time = sensor.data.current_air_time[:, sensor_cfg.body_ids]
     excess = (current_air_time - threshold).clamp(min=0.0)  # (N, F)
     return excess.sum(dim=1)
+
+
+def trot_gait_reward(
+    env: "ManagerBasedRLEnv",
+    sensor_cfg: "SceneEntityCfg" = None,
+    velocity_threshold: float = 0.1,
+) -> torch.Tensor:
+    """Reward diagonal foot contact synchronization to encourage trot gait.
+
+    Trot: FL+RR in contact together, FR+RL in contact together.
+    Body order assumed alphabetical from USD: FL(0), FR(1), RL(2), RR(3).
+    Only active when the robot is commanded to move (above velocity_threshold).
+    """
+    from isaaclab.managers import SceneEntityCfg as _SceneEntityCfg
+    from isaaclab.sensors import ContactSensor
+
+    if sensor_cfg is None:
+        sensor_cfg = _SceneEntityCfg("contact_forces", body_names=".*_foot")
+
+    sensor: ContactSensor = env.scene[sensor_cfg.name]
+    forces = sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]  # (N, 4, 3)
+    in_contact = forces.norm(dim=-1) > 1.0  # (N, 4)
+
+    # Diagonal pairs: FL(0)+RR(3) and FR(1)+RL(2)
+    fl, fr, rl, rr = in_contact[:, 0], in_contact[:, 1], in_contact[:, 2], in_contact[:, 3]
+    diag1 = (fl == rr).float()
+    diag2 = (fr == rl).float()
+
+    vel_cmd = env.command_manager.get_command("base_velocity")[:, :2]
+    moving = (vel_cmd.norm(dim=-1) > velocity_threshold).float()
+    return moving * (diag1 + diag2) * 0.5

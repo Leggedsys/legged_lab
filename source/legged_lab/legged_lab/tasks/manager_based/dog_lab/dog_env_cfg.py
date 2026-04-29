@@ -434,9 +434,14 @@ class DogWalkV2RewardsCfg:
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.2)
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0)
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-1e-5)
-    dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+    dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-1e-6)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
     joint_deviation = RewTerm(func=mdp.joint_deviation_l1, weight=-0.005)
+    trot_gait = RewTerm(
+        func=mdp.trot_gait_reward,
+        weight=0.3,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
+    )
     prolonged_air = RewTerm(
         func=mdp.prolonged_air_penalty,
         weight=-0.5,
