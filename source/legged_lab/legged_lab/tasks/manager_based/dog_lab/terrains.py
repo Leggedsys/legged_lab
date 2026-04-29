@@ -41,6 +41,7 @@ COMPETITION_TERRAIN_CFG = TerrainGeneratorCfg(
     vertical_scale=0.005,
     slope_threshold=0.75,
     use_cache=False,
+    curriculum=True,
     sub_terrains={
         "flat": MeshPlaneTerrainCfg(proportion=0.1),
         "rough": HfRandomUniformTerrainCfg(
@@ -115,7 +116,7 @@ COMPETITION_TERRAIN_IMPORTER_CFG = TerrainImporterCfg(
     prim_path="/World/ground",
     terrain_type="generator",
     terrain_generator=COMPETITION_TERRAIN_CFG,
-    max_init_terrain_level=5,
+    max_init_terrain_level=1,
     collision_group=-1,
     physics_material=_PHYSICS_MAT,
     debug_vis=False,

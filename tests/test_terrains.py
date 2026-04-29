@@ -22,3 +22,20 @@ def test_stairs_height_matches_competition():
     stairs = COMPETITION_TERRAIN_CFG.sub_terrains["stairs_up"]
     assert stairs.step_height_range[1] == pytest.approx(0.10, abs=0.001), \
         f"Expected max stair height 0.10m, got {stairs.step_height_range[1]}"
+
+
+def test_flat_importer_cfg():
+    from legged_lab.tasks.manager_based.dog_lab.terrains import FLAT_TERRAIN_IMPORTER_CFG
+    assert FLAT_TERRAIN_IMPORTER_CFG.terrain_type == "plane"
+    assert FLAT_TERRAIN_IMPORTER_CFG.physics_material is not None
+    assert FLAT_TERRAIN_IMPORTER_CFG.prim_path == "/World/ground"
+
+
+def test_competition_importer_cfg():
+    from legged_lab.tasks.manager_based.dog_lab.terrains import (
+        COMPETITION_TERRAIN_CFG,
+        COMPETITION_TERRAIN_IMPORTER_CFG,
+    )
+    assert COMPETITION_TERRAIN_IMPORTER_CFG.terrain_type == "generator"
+    assert COMPETITION_TERRAIN_IMPORTER_CFG.terrain_generator is COMPETITION_TERRAIN_CFG
+    assert COMPETITION_TERRAIN_IMPORTER_CFG.physics_material is not None
