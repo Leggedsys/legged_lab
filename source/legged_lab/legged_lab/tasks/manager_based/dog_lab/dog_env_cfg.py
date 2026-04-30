@@ -340,6 +340,7 @@ class DogWalkV2ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
         actions = ObsTerm(func=mdp.last_action)
+        gait_phase = ObsTerm(func=mdp.gait_phase_obs, params={"frequency": 1.5})
         height_scan = ObsTerm(
             func=mdp.height_scan,
             params={"sensor_cfg": SceneEntityCfg("height_scanner"), "offset": 0.0},
@@ -362,6 +363,7 @@ class DogWalkV2ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         actions = ObsTerm(func=mdp.last_action)
+        gait_phase = ObsTerm(func=mdp.gait_phase_obs, params={"frequency": 1.5})
         height_scan = ObsTerm(
             func=mdp.height_scan,
             params={"sensor_cfg": SceneEntityCfg("height_scanner"), "offset": 0.0},
@@ -419,7 +421,7 @@ class DogWalkV2RewardsCfg:
         params={
             "command_name": "base_velocity",
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
-            "threshold": 0.5,
+            "threshold": 0.35,
         },
     )
     foot_slip = RewTerm(
@@ -430,24 +432,27 @@ class DogWalkV2RewardsCfg:
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
         },
     )
-    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
+    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-1.5)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.2)
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0)
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-1e-5)
-    dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-1e-6)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
+    dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-5e-7)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.02)
     joint_deviation = RewTerm(func=mdp.joint_deviation_l1, weight=-0.005)
-    trot_gait = RewTerm(
-        func=mdp.trot_gait_reward,
-        weight=0.3,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
+    gait_clock = RewTerm(
+        func=mdp.gait_clock_reward,
+        weight=0.5,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
+            "frequency": 1.5,
+        },
     )
     prolonged_air = RewTerm(
         func=mdp.prolonged_air_penalty,
-        weight=-0.5,
+        weight=-1.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
-            "threshold": 0.5,
+            "threshold": 0.3,
         },
     )
     undesired_contacts = RewTerm(

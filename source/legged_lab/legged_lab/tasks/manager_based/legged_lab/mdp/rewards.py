@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 import torch
 from typing import TYPE_CHECKING
 
@@ -12,7 +13,15 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import SceneEntityCfg
 
-__all__ = ["joint_pos_target_l2", "track_height_exp", "foot_slip", "prolonged_air_penalty", "trot_gait_reward"]
+__all__ = [
+    "joint_pos_target_l2",
+    "track_height_exp",
+    "foot_slip",
+    "prolonged_air_penalty",
+    "trot_gait_reward",
+    "gait_clock_reward",
+    "gait_phase_obs",
+]
 
 
 def joint_pos_target_l2(
@@ -120,6 +129,60 @@ def prolonged_air_penalty(
     current_air_time = sensor.data.current_air_time[:, sensor_cfg.body_ids]
     excess = (current_air_time - threshold).clamp(min=0.0)  # (N, F)
     return excess.sum(dim=1)
+
+
+def gait_phase_obs(env: "ManagerBasedRLEnv", frequency: float = 1.5) -> torch.Tensor:
+    """Return [sin(φ), cos(φ)] of the trot gait phase as a 2-dim observation.
+
+    The policy uses this to synchronise its leg commands with the reference clock.
+    φ = 2π * frequency * t  where t is the current step count × step_dt.
+    """
+    t = env.episode_length_buf * env.step_dt  # (N,)
+    phase = 2.0 * math.pi * frequency * t
+    return torch.stack([torch.sin(phase), torch.cos(phase)], dim=-1)  # (N, 2)
+
+
+def gait_clock_reward(
+    env: "ManagerBasedRLEnv",
+    sensor_cfg: "SceneEntityCfg" = None,
+    frequency: float = 1.5,
+    velocity_threshold: float = 0.1,
+) -> torch.Tensor:
+    """Reward foot contact pattern that matches a trot clock at the target frequency.
+
+    Trot schedule (body order FL=0, FR=1, RL=2, RR=3):
+      • When sin(φ) > 0 → FL and RR should be in contact, FR and RL in swing.
+      • When sin(φ) < 0 → FR and RL should be in contact, FL and RR in swing.
+
+    Returns the fraction of legs (0–1) whose contact state matches the schedule,
+    scaled to zero when the robot is stationary.
+    """
+    from isaaclab.managers import SceneEntityCfg as _SceneEntityCfg
+    from isaaclab.sensors import ContactSensor
+
+    if sensor_cfg is None:
+        sensor_cfg = _SceneEntityCfg("contact_forces", body_names=".*_foot")
+
+    sensor: ContactSensor = env.scene[sensor_cfg.name]
+    forces = sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]  # (N, 4, 3)
+    in_contact = forces.norm(dim=-1) > 1.0  # (N, 4)  bool
+
+    t = env.episode_length_buf * env.step_dt
+    phase = 2.0 * math.pi * frequency * t  # (N,)
+    sin_p = torch.sin(phase)  # (N,)
+
+    # Desired contact: 1=stance 0=swing
+    fl_des = (sin_p > 0).float()
+    rr_des = fl_des
+    fr_des = (sin_p < 0).float()
+    rl_des = fr_des
+    desired = torch.stack([fl_des, fr_des, rl_des, rr_des], dim=1)  # (N, 4)
+
+    match = (in_contact == desired.bool()).float().mean(dim=1)  # (N,)
+
+    vel_cmd = env.command_manager.get_command("base_velocity")[:, :2]
+    moving = (vel_cmd.norm(dim=-1) > velocity_threshold).float()
+    return moving * match
 
 
 def trot_gait_reward(
