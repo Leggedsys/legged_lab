@@ -121,3 +121,50 @@ COMPETITION_TERRAIN_IMPORTER_CFG = TerrainImporterCfg(
     physics_material=_PHYSICS_MAT,
     debug_vis=False,
 )
+
+# ---------------------------------------------------------------------------
+# Transition terrain (Phase 1.5) — flat-dominant with mild roughness/slopes
+# ---------------------------------------------------------------------------
+TRANSITION_TERRAIN_CFG = TerrainGeneratorCfg(
+    seed=42,
+    size=(8.0, 8.0),
+    border_width=20.0,
+    num_rows=5,
+    num_cols=10,
+    horizontal_scale=0.1,
+    vertical_scale=0.005,
+    slope_threshold=0.75,
+    use_cache=False,
+    curriculum=True,
+    sub_terrains={
+        "flat": MeshPlaneTerrainCfg(proportion=0.5),
+        "mild_rough": HfRandomUniformTerrainCfg(
+            proportion=0.3,
+            noise_range=(0.0, 0.03),
+            noise_step=0.005,
+            border_width=0.25,
+        ),
+        "gentle_slope_up": HfPyramidSlopedTerrainCfg(
+            proportion=0.1,
+            slope_range=(0.0, 0.12),
+            platform_width=2.0,
+            border_width=0.25,
+        ),
+        "gentle_slope_down": HfInvertedPyramidSlopedTerrainCfg(
+            proportion=0.1,
+            slope_range=(0.0, 0.12),
+            platform_width=2.0,
+            border_width=0.25,
+        ),
+    },
+)
+
+TRANSITION_TERRAIN_IMPORTER_CFG = TerrainImporterCfg(
+    prim_path="/World/ground",
+    terrain_type="generator",
+    terrain_generator=TRANSITION_TERRAIN_CFG,
+    max_init_terrain_level=1,
+    collision_group=-1,
+    physics_material=_PHYSICS_MAT,
+    debug_vis=False,
+)

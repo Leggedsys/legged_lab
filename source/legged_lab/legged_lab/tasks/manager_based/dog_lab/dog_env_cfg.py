@@ -18,6 +18,7 @@ from legged_lab.assets.dog_cfg import DOG_URDF_CFG
 from legged_lab.tasks.manager_based.dog_lab.terrains import (
     COMPETITION_TERRAIN_IMPORTER_CFG,
     FLAT_TERRAIN_IMPORTER_CFG,
+    TRANSITION_TERRAIN_IMPORTER_CFG,
 )
 
 from . import mdp
@@ -500,8 +501,20 @@ class DogWalkV2EnvCfg(ManagerBasedRLEnvCfg):
 
 
 @configclass
+class DogWalkV2Phase1p5EnvCfg(DogWalkV2EnvCfg):
+    """Phase 1.5: flat-dominant + mild roughness/slopes, bridges Phase 1 → Phase 2."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.terrain = TRANSITION_TERRAIN_IMPORTER_CFG
+        self.sim.physics_material = self.scene.terrain.physics_material
+        self.curriculum = DogWalkV2CurriculumCfg()
+        self.episode_length_s = 20.0
+
+
+@configclass
 class DogWalkV2Phase2EnvCfg(DogWalkV2EnvCfg):
-    """Phase 2: competition terrain with curriculum, hot-started from Phase 1."""
+    """Phase 2: competition terrain with curriculum, hot-started from Phase 1.5."""
 
     def __post_init__(self):
         super().__post_init__()
