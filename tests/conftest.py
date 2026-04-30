@@ -803,7 +803,7 @@ _mdp_func_names = [
     "feet_air_time", "flat_orientation_l2", "foot_slip", "generated_commands",
     "prolonged_air_penalty", "trot_gait_reward", "gait_clock_reward", "gait_phase_obs",
     "height_scan", "illegal_contact", "is_alive", "joint_acc_l2",
-    "joint_deviation_l1", "joint_pos_rel", "joint_torques_l2",
+    "joint_deviation_l1", "joint_pos_rel", "joint_pos_target_l2", "joint_torques_l2",
     "joint_vel_rel", "last_action", "lin_vel_z_l2", "projected_gravity",
     "randomize_rigid_body_mass", "randomize_rigid_body_material",
     "reset_joints_by_scale", "reset_root_state_uniform",

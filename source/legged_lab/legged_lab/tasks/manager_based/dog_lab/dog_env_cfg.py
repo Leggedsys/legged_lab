@@ -65,7 +65,7 @@ class ActionsCfg:
             "^(FL|FR)_calf_joint$",
         ],
         scale={
-            ".*_hip_joint": 0.25,
+            ".*_hip_joint": 0.15,
             ".*_thigh_joint": 0.20,   # default=0.7, soft_limit≈0.72 — 0.3 would hit limit
             ".*_calf_joint": 0.25,
         },
@@ -79,7 +79,7 @@ class ActionsCfg:
             "^(RL|RR)_calf_joint$",
         ],
         scale={
-            ".*_hip_joint": 0.25,
+            ".*_hip_joint": 0.15,
             ".*_thigh_joint": 0.20,   # same fix
             ".*_calf_joint": 0.25,
         },
@@ -439,6 +439,14 @@ class DogWalkV2RewardsCfg:
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-1e-5)
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-5e-7)
     joint_deviation = RewTerm(func=mdp.joint_deviation_l1, weight=-0.005)
+    hip_deviation = RewTerm(
+        func=mdp.joint_pos_target_l2,
+        weight=-0.15,
+        params={
+            "target": 0.0,
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*_hip_joint"),
+        },
+    )
     gait_clock = RewTerm(
         func=mdp.gait_clock_reward,
         weight=0.5,
