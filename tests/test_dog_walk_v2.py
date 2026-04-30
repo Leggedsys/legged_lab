@@ -22,7 +22,7 @@ def test_ppo_cfg_importable():
     )
     cfg = DogWalkV2PPORunnerCfg()
     assert cfg.max_iterations == 5000
-    assert cfg.algorithm.schedule == "fixed"
+    assert cfg.algorithm.schedule == "adaptive"
     assert cfg.algorithm.entropy_coef == pytest.approx(0.01)
 
 

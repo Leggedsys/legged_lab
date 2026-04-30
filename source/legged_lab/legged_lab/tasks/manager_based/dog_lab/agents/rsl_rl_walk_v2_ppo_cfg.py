@@ -16,6 +16,8 @@ class DogWalkV2PPORunnerCfg(DogPPORunnerCfg):
         self.policy.init_noise_std = 0.8
         self.policy.actor_hidden_dims = [512, 256, 128]
         self.policy.critic_hidden_dims = [512, 256, 128]
-        self.algorithm.entropy_coef = 0.01        # 10× base default — prevents premature convergence
-        self.algorithm.learning_rate = 1e-3
-        self.algorithm.schedule = "fixed"          # prevents LR→0 collapse seen in prior runs
+        self.algorithm.entropy_coef = 0.01
+        self.algorithm.learning_rate = 3e-4
+        self.algorithm.schedule = "adaptive"
+        self.algorithm.desired_kl = 0.01
+        self.algorithm.max_grad_norm = 0.5
