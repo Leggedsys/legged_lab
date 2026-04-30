@@ -437,7 +437,6 @@ class DogWalkV2RewardsCfg:
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0)
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-1e-5)
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-5e-7)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.02)
     joint_deviation = RewTerm(func=mdp.joint_deviation_l1, weight=-0.005)
     gait_clock = RewTerm(
         func=mdp.gait_clock_reward,
