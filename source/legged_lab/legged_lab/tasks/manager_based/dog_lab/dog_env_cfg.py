@@ -387,9 +387,9 @@ class DogWalkV2CommandsCfg:
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=mdp.UniformVelocityHeightCommandCfg.Ranges(
-            lin_vel_x=(-0.5, 1.0),
+            lin_vel_x=(-0.5, 1.5),
             lin_vel_y=(-0.3, 0.3),
-            ang_vel_z=(-0.8, 0.8),
+            ang_vel_z=(-1.0, 1.0),
             heading=(0.0, 0.0),
             height=(0.24, 0.32),   # nominal=0.28m; (0.15,0.30) averaged too low
         ),
@@ -493,3 +493,15 @@ class DogWalkV2EnvCfg(ManagerBasedRLEnvCfg):
         self.events.base_external_force_torque.params["torque_range"] = (0.0, 2.0)
         # 放宽关节初始化范围，迫使 policy 从各种腿部姿态中恢复，避免三腿局部最优
         self.events.reset_robot_joints.params["position_range"] = (0.5, 1.5)
+
+
+@configclass
+class DogWalkV2Phase2EnvCfg(DogWalkV2EnvCfg):
+    """Phase 2: competition terrain with curriculum, hot-started from Phase 1."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.terrain = COMPETITION_TERRAIN_IMPORTER_CFG
+        self.sim.physics_material = self.scene.terrain.physics_material
+        self.curriculum = DogWalkV2CurriculumCfg()
+        self.episode_length_s = 20.0
