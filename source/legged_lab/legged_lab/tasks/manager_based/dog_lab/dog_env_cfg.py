@@ -14,10 +14,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 from legged_lab.assets.dog_cfg import DOG_URDF_CFG
-from legged_lab.tasks.manager_based.dog_lab.terrains import (
-    COMPETITION_TERRAIN_IMPORTER_CFG,
-    FLAT_TERRAIN_IMPORTER_CFG,
-)
+from legged_lab.tasks.manager_based.dog_lab.terrains import COMPETITION_TERRAIN_IMPORTER_CFG
 
 from . import mdp
 
@@ -259,7 +256,7 @@ class CurriculumCfg:
 
 @configclass
 class DogWalkEnvCfg(ManagerBasedRLEnvCfg):
-    """Phase 1: flat terrain, no curriculum."""
+    """10-level competition terrain curriculum."""
 
     scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=2.5)
     observations: ObservationsCfg = ObservationsCfg()
@@ -275,17 +272,5 @@ class DogWalkEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 20.0
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
-        self.scene.terrain = FLAT_TERRAIN_IMPORTER_CFG
-        self.sim.physics_material = self.scene.terrain.physics_material
-        self.curriculum = None
-
-
-@configclass
-class DogWalkTerrainEnvCfg(DogWalkEnvCfg):
-    """Phase 2: 10-level competition terrain curriculum, hot-started from Phase 1."""
-
-    def __post_init__(self):
-        super().__post_init__()
         self.scene.terrain = COMPETITION_TERRAIN_IMPORTER_CFG
         self.sim.physics_material = self.scene.terrain.physics_material
-        self.curriculum = CurriculumCfg()

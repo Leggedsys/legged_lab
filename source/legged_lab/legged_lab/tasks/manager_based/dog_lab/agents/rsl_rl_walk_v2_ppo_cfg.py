@@ -23,8 +23,3 @@ class DogWalkPPORunnerCfg(PPORunnerCfg):
         self.algorithm.max_grad_norm = 0.5
 
 
-@configclass
-class DogWalkTerrainPPORunnerCfg(DogWalkPPORunnerCfg):
-    experiment_name = "dog_locomotion_walk_terrain"
-    max_iterations = 8000
-    save_interval = 500
