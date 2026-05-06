@@ -1,11 +1,11 @@
 from isaaclab.utils import configclass
 
-from legged_lab.tasks.manager_based.dog_lab.agents.rsl_rl_ppo_cfg import DogPPORunnerCfg
+from legged_lab.tasks.manager_based.legged_lab.agents.rsl_rl_ppo_cfg import PPORunnerCfg
 
 
 @configclass
-class DogWalkV2PPORunnerCfg(DogPPORunnerCfg):
-    experiment_name = "dog_locomotion_walk_v2"
+class DogWalkPPORunnerCfg(PPORunnerCfg):
+    experiment_name = "dog_locomotion_walk"
     max_iterations = 5000
     num_steps_per_env = 24
     save_interval = 200
@@ -21,3 +21,10 @@ class DogWalkV2PPORunnerCfg(DogPPORunnerCfg):
         self.algorithm.schedule = "adaptive"
         self.algorithm.desired_kl = 0.01
         self.algorithm.max_grad_norm = 0.5
+
+
+@configclass
+class DogWalkTerrainPPORunnerCfg(DogWalkPPORunnerCfg):
+    experiment_name = "dog_locomotion_walk_terrain"
+    max_iterations = 8000
+    save_interval = 500
