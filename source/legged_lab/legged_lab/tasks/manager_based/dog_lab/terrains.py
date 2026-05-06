@@ -19,6 +19,16 @@ _PHYSICS_MAT = sim_utils.RigidBodyMaterialCfg(
     dynamic_friction=1.0,
 )
 
+FLAT_TERRAIN_IMPORTER_CFG = TerrainImporterCfg(
+    prim_path="/World/ground",
+    terrain_type="plane",
+    terrain_generator=None,
+    max_init_terrain_level=0,
+    collision_group=-1,
+    physics_material=_PHYSICS_MAT,
+    debug_vis=False,
+)
+
 COMPETITION_TERRAIN_IMPORTER_CFG = TerrainImporterCfg(
     prim_path="/World/ground",
     terrain_type="generator",

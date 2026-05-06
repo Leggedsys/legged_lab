@@ -21,3 +21,10 @@ class PPORunnerCfg(_BasePPORunnerCfg):
         self.algorithm.schedule = "adaptive"
         self.algorithm.desired_kl = 0.01
         self.algorithm.max_grad_norm = 0.5
+
+
+@configclass
+class TerrainPPORunnerCfg(PPORunnerCfg):
+    experiment_name = "dog_walk_terrain"
+    max_iterations = 8000
+    save_interval = 500
