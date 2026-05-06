@@ -48,6 +48,28 @@ gym.register(
 
 
 gym.register(
+    id="Dog-Legged-Lab-Walk-v2-Phase1p75",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.dog_env_cfg:DogWalkV2Phase1p75EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_walk_v2_phase1p75_ppo_cfg:DogWalkV2Phase1p75PPORunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Dog-Legged-Lab-Walk-v2-Phase3",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.dog_env_cfg:DogWalkV2Phase3EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_walk_v2_phase3_ppo_cfg:DogWalkV2Phase3PPORunnerCfg",
+    },
+)
+
+
+gym.register(
     id="Dog-Legged-Lab-Walk-v2-Phase2",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,

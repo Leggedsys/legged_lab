@@ -31,14 +31,15 @@ DOG_URDF_CFG = ArticulationCfg(
     # 但 URDF→USD 转换时 axis 的符号信息丢失，导致 USD 中所有 hip 的 axis 都变成正方向。
     # 因此 FR/RR hip 的值需要取反，才能在仿真中得到正确的向外摆腿姿态。
     # 此值与 URDF 的约定不一致，是 Isaac Lab 侧的适配。部署到真实机器人时需反向映射。
+    # hip 默认值设为 0.0（中立位），避免训练时策略需要主动往回收腿才能竖直站立。
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.28),
         joint_pos={
-            # hip（外摆为正，FR/RL 取反）
-            "^FL_hip_joint$":    0.1,
-            "^FR_hip_joint$":   -0.1,
-            "^RL_hip_joint$":   -0.1,
-            "^RR_hip_joint$":    0.1,
+            # hip（外摆为正，FR/RR 取反；0.0 = 中立竖直站姿）
+            "^FL_hip_joint$":    0.0,
+            "^FR_hip_joint$":    0.0,
+            "^RL_hip_joint$":    0.0,
+            "^RR_hip_joint$":    0.0,
             # thigh（前摆为正）
             "^FL_thigh_joint$":  0.7,
             "^FR_thigh_joint$":  0.7,

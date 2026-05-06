@@ -18,6 +18,7 @@ from legged_lab.assets.dog_cfg import DOG_URDF_CFG
 from legged_lab.tasks.manager_based.dog_lab.terrains import (
     COMPETITION_TERRAIN_IMPORTER_CFG,
     FLAT_TERRAIN_IMPORTER_CFG,
+    PHASE1P75_TERRAIN_IMPORTER_CFG,
     TRANSITION_TERRAIN_IMPORTER_CFG,
 )
 
@@ -341,7 +342,6 @@ class DogWalkV2ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
         actions = ObsTerm(func=mdp.last_action)
-        gait_phase = ObsTerm(func=mdp.gait_phase_obs, params={"frequency": 1.5})
         height_scan = ObsTerm(
             func=mdp.height_scan,
             params={"sensor_cfg": SceneEntityCfg("height_scanner"), "offset": 0.0},
@@ -364,7 +364,6 @@ class DogWalkV2ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         actions = ObsTerm(func=mdp.last_action)
-        gait_phase = ObsTerm(func=mdp.gait_phase_obs, params={"frequency": 1.5})
         height_scan = ObsTerm(
             func=mdp.height_scan,
             params={"sensor_cfg": SceneEntityCfg("height_scanner"), "offset": 0.0},
@@ -381,7 +380,7 @@ class DogWalkV2ObservationsCfg:
 
 @configclass
 class DogWalkV2CommandsCfg:
-    base_velocity = mdp.UniformVelocityHeightCommandCfg(
+    base_velocity = mdp.UniformVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=(4.0, 8.0),
         rel_standing_envs=0.1,
@@ -389,83 +388,50 @@ class DogWalkV2CommandsCfg:
         heading_command=False,
         heading_control_stiffness=0.5,
         debug_vis=True,
-        ranges=mdp.UniformVelocityHeightCommandCfg.Ranges(
+        ranges=mdp.UniformVelocityCommandCfg.Ranges(
             lin_vel_x=(-0.5, 1.5),
             lin_vel_y=(-0.3, 0.3),
             ang_vel_z=(-1.0, 1.0),
             heading=(0.0, 0.0),
-            height=(0.24, 0.32),   # nominal=0.28m; (0.15,0.30) averaged too low
         ),
     )
 
 
 @configclass
 class DogWalkV2RewardsCfg:
+    # --- 任务奖励 ---
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_yaw_frame_exp,
-        weight=2.0,
+        weight=1.5,
         params={"command_name": "base_velocity", "std": 0.25},
     )
     track_ang_vel_z_exp = RewTerm(
         func=mdp.track_ang_vel_z_world_exp,
-        weight=0.5,
+        weight=0.75,
         params={"command_name": "base_velocity", "std": 0.25},
     )
-    track_height_exp = RewTerm(
-        func=mdp.track_height_exp,
-        weight=1.5,
-        params={"command_name": "base_velocity", "std": 0.03},
-    )
+    # --- 步态质量 ---
     feet_air_time = RewTerm(
         func=mdp.feet_air_time,
-        weight=0.5,
+        weight=1.0,   # 与 track_lin_vel 比例 ~1:1.5，足够驱动 4 腿步态
         params={
             "command_name": "base_velocity",
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
-            "threshold": 0.35,
+            "threshold": 0.5,
         },
     )
-    foot_slip = RewTerm(
-        func=mdp.foot_slip,
-        weight=-0.1,
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot"),
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
-        },
-    )
-    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-1.5)
-    ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.2)
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0)
+    # --- 稳定性惩罚 ---
+    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-1.0)
+    ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
+    # --- 效率/平滑 ---
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-1e-5)
-    dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-5e-7)
-    joint_deviation = RewTerm(func=mdp.joint_deviation_l1, weight=-0.005)
-    hip_deviation = RewTerm(
-        func=mdp.joint_pos_target_l2,
-        weight=-0.15,
-        params={
-            "target": 0.0,
-            "asset_cfg": SceneEntityCfg("robot", joint_names=".*_hip_joint"),
-        },
-    )
-    gait_clock = RewTerm(
-        func=mdp.gait_clock_reward,
-        weight=0.5,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
-            "frequency": 1.5,
-        },
-    )
-    prolonged_air = RewTerm(
-        func=mdp.prolonged_air_penalty,
-        weight=-1.0,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
-            "threshold": 0.3,
-        },
-    )
+    dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.005)
+    # --- 安全 ---
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
-        weight=-2.0,
+        weight=-1.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_calf"),
             "threshold": 1.0,
@@ -521,6 +487,18 @@ class DogWalkV2Phase1p5EnvCfg(DogWalkV2EnvCfg):
 
 
 @configclass
+class DogWalkV2Phase1p75EnvCfg(DogWalkV2EnvCfg):
+    """Phase 1.75: introduces stairs + stepping stones at low difficulty."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.terrain = PHASE1P75_TERRAIN_IMPORTER_CFG
+        self.sim.physics_material = self.scene.terrain.physics_material
+        self.curriculum = DogWalkV2CurriculumCfg()
+        self.episode_length_s = 20.0
+
+
+@configclass
 class DogWalkV2Phase2EnvCfg(DogWalkV2EnvCfg):
     """Phase 2: competition terrain with curriculum, hot-started from Phase 1.5."""
 
@@ -530,3 +508,27 @@ class DogWalkV2Phase2EnvCfg(DogWalkV2EnvCfg):
         self.sim.physics_material = self.scene.terrain.physics_material
         self.curriculum = DogWalkV2CurriculumCfg()
         self.episode_length_s = 20.0
+
+
+@configclass
+class DogWalkV2Phase3EnvCfg(DogWalkV2Phase2EnvCfg):
+    """Phase 3: push past terrain_level plateau via larger action scales and relaxed penalties."""
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        # Increase action range so robot can clear 10cm stairs (was ~9.5cm max, now ~11.5cm)
+        self.actions.front_legs.scale[".*_thigh_joint"] = 0.25
+        self.actions.front_legs.scale[".*_calf_joint"] = 0.30
+        self.actions.rear_legs.scale[".*_thigh_joint"] = 0.25
+        self.actions.rear_legs.scale[".*_calf_joint"] = 0.30
+
+        # Relax penalties that discourage stair/slope climbing
+        self.rewards.lin_vel_z_l2.weight = -0.3          # was -1.0: allow body to bob over steps
+        self.rewards.flat_orientation_l2.weight = -0.8   # was -1.0: allow forward lean on slopes
+
+        # Stronger forward-walking incentive to break plateau
+        self.rewards.track_lin_vel_xy_exp.weight = 3.0   # was 1.5
+
+        # Stronger push disturbance for robustness (spec Phase 4: up to 30N)
+        self.events.base_external_force_torque.params["force_range"] = (0.0, 35.0)
