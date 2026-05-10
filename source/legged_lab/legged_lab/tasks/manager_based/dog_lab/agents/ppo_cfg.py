@@ -13,6 +13,9 @@ class PPORunnerCfg(_BasePPORunnerCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.policy.class_name = (
+            "legged_lab.tasks.manager_based.dog_lab.symmetric_actor_critic:SymmetricActorCritic"
+        )
         self.policy.init_noise_std = 0.8
         self.policy.actor_hidden_dims = [512, 256, 128]
         self.policy.critic_hidden_dims = [512, 256, 128]
@@ -28,3 +31,4 @@ class TerrainPPORunnerCfg(PPORunnerCfg):
     experiment_name = "dog_walk_terrain"
     max_iterations = 8000
     save_interval = 500
+    resume = True

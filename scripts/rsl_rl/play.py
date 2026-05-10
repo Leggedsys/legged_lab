@@ -97,8 +97,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     # specify directory for logging experiments
-    log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
-    log_root_path = os.path.abspath(log_root_path)
+    _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    log_root_path = os.path.join(_project_root, "logs", "rsl_rl", agent_cfg.experiment_name)
     print(f"[INFO] Loading experiment from directory: {log_root_path}")
     if args_cli.use_pretrained_checkpoint:
         resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name)

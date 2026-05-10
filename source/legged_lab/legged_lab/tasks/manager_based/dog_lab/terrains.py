@@ -92,7 +92,7 @@ COMPETITION_TERRAIN_IMPORTER_CFG = TerrainImporterCfg(
             ),
         },
     ),
-    max_init_terrain_level=1,
+    max_init_terrain_level=9,
     collision_group=-1,
     physics_material=_PHYSICS_MAT,
     debug_vis=False,

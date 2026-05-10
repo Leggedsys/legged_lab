@@ -13,3 +13,15 @@ from legged_lab.tasks.manager_based.dog_lab.mdp.commands import (  # noqa: F401
     UniformVelocityHeightCommand,
     UniformVelocityHeightCommandCfg,
 )
+
+from legged_lab.tasks.manager_based.dog_lab.mdp.rewards import (  # noqa: F401
+    joint_power_distribution,
+    foot_prolonged_air_termination,
+    foot_contact_balance,
+    pose_similarity_reward,
+    stand_still_penalty,
+    foot_clearance_reward,
+    action_smoothness_l2,
+)
+
+from legged_lab.tasks.manager_based.dog_lab.mdp.symmetry import mirror_obs_action  # noqa: F401
