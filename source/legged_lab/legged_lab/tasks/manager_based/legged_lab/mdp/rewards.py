@@ -21,6 +21,7 @@ __all__ = [
     "trot_gait_reward",
     "gait_clock_reward",
     "gait_phase_obs",
+    "flat_orientation_exp",
 ]
 
 
@@ -214,3 +215,43 @@ def trot_gait_reward(
     vel_cmd = env.command_manager.get_command("base_velocity")[:, :2]
     moving = (vel_cmd.norm(dim=-1) > velocity_threshold).float()
     return moving * (diag1 + diag2) * 0.5
+
+
+def _flat_orientation_exp_impl(g_xy_sq: torch.Tensor, sigma: float) -> torch.Tensor:
+    r"""Pure-tensor helper: :math:`\exp(-\|g_{xy}\|^2 / \sigma)`.
+
+    Maps squared x-y gravity component to (0, 1] — 1 when perfectly level,
+    decaying exponentially as the base tilts.
+    """
+    return torch.exp(-g_xy_sq / sigma)
+
+
+def flat_orientation_exp(
+    env: "ManagerBasedRLEnv",
+    sigma: float = 0.05,
+    asset_cfg: "SceneEntityCfg" = None,
+) -> torch.Tensor:
+    r"""Exponential reward for keeping the base level.
+
+    Uses the projected gravity vector (sim-to-real stable, no Euler-angle singularities).
+    Returns :math:`\exp(-\|g_{xy}\|^2 / \sigma)` in (0, 1].
+
+    Apply with a positive weight — the reward approaches 1 when level,
+    decays to near 0 when severely tilted.  This gives a gentle gradient
+    near the target while still strongly penalising large tilts.
+
+    By default σ = 0.05, which means:
+      * 5° tilt  → reward ≈ 0.99
+      * 10° tilt → reward ≈ 0.94
+      * 20° tilt → reward ≈ 0.78
+      * 45° tilt → reward ≈ 0.37
+    """
+    from isaaclab.managers import SceneEntityCfg as _SceneEntityCfg
+    from isaaclab.assets import Articulation
+
+    if asset_cfg is None:
+        asset_cfg = _SceneEntityCfg("robot")
+    asset: Articulation = env.scene[asset_cfg.name]
+    projected_gravity = asset.data.projected_gravity_b  # (N, 3)
+    g_xy_sq = torch.sum(torch.square(projected_gravity[:, :2]), dim=1)  # (N,)
+    return _flat_orientation_exp_impl(g_xy_sq, sigma)

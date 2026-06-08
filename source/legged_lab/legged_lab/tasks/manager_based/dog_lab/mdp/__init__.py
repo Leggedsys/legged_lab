@@ -7,6 +7,7 @@ from legged_lab.tasks.manager_based.legged_lab.mdp.rewards import (  # noqa: F40
     trot_gait_reward,
     gait_clock_reward,
     gait_phase_obs,
+    flat_orientation_exp,
 )
 
 from legged_lab.tasks.manager_based.dog_lab.mdp.commands import (  # noqa: F401

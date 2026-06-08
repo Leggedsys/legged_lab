@@ -12,6 +12,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg, UniformNoiseCfg
 
 from legged_lab.assets.dog_cfg import DOG_URDF_CFG
 from legged_lab.tasks.manager_based.dog_lab.terrains import (
@@ -55,7 +56,7 @@ class ActionsCfg:
         scale={
             ".*_hip_joint": 0.15,
             ".*_thigh_joint": 0.20,
-            ".*_calf_joint": 0.15,
+            ".*_calf_joint": 0.20,
         },
         use_default_offset=True,
     )
@@ -66,8 +67,24 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
-        projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
+        # 陀螺偏置: ±0.03 rad/s persistent drift, simulated per-episode bias
+        base_ang_vel = ObsTerm(
+            func=mdp.base_ang_vel,
+            noise=NoiseModelWithAdditiveBiasCfg(
+                noise_cfg=UniformNoiseCfg(n_min=-0.2, n_max=0.2),
+                bias_noise_cfg=UniformNoiseCfg(n_min=-0.03, n_max=0.03),
+                sample_bias_per_component=True,
+            ),
+        )
+        # 重力投影偏置: ±0.02 g persistent drift
+        projected_gravity = ObsTerm(
+            func=mdp.projected_gravity,
+            noise=NoiseModelWithAdditiveBiasCfg(
+                noise_cfg=UniformNoiseCfg(n_min=-0.05, n_max=0.05),
+                bias_noise_cfg=UniformNoiseCfg(n_min=-0.02, n_max=0.02),
+                sample_bias_per_component=True,
+            ),
+        )
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
@@ -145,7 +162,7 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="base_link"),
-            "mass_distribution_params": (-1.5, 1.5),
+            "mass_distribution_params": (-2.0, 2.0),
             "operation": "add",
         },
     )
@@ -155,8 +172,50 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="base_link"),
-            "force_range": (0.0, 25.0),
-            "torque_range": (0.0, 2.0),
+            "force_range": (0.0, 40.0),
+            "torque_range": (0.0, 5.0),
+        },
+    )
+
+    randomize_pd_gains = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "stiffness_distribution_params": (0.8, 1.2),
+            "damping_distribution_params": (0.7, 1.3),
+            "operation": "scale",
+            "distribution": "uniform",
+        },
+    )
+
+    randomize_joint_friction = EventTerm(
+        func=mdp.randomize_joint_parameters,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "friction_distribution_params": (0.0, 0.2),
+            "operation": "abs",
+            "distribution": "uniform",
+        },
+    )
+
+    randomize_com = EventTerm(
+        func=mdp.randomize_rigid_body_com,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "com_range": {"x": (-0.02, 0.02), "y": (-0.02, 0.02), "z": (-0.02, 0.02)},
+        },
+    )
+
+    randomize_leg_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_thigh|.*_calf|.*_foot"),
+            "mass_distribution_params": (-0.15, 0.15),
+            "operation": "add",
         },
     )
 
@@ -166,8 +225,8 @@ class EventCfg:
         params={
             "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "yaw": (-3.14, 3.14)},
             "velocity_range": {
-                "x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0),
-                "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (0.0, 0.0),
+                "x": (-0.1, 0.1), "y": (-0.1, 0.1), "z": (-0.1, 0.1),
+                "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (-0.1, 0.1),
             },
         },
     )
@@ -185,58 +244,69 @@ class EventCfg:
 @configclass
 class RewardsCfg:
     # ─────────────────────────────────────────────
-    # 任务奖励  Task rewards
+    # 1. 任务奖励  Task rewards
     # ─────────────────────────────────────────────
 
-    # std=0.5 → exp(-4·err²)，初期容忍更大的跟踪误差，梯度更平滑
-    # std=0.25 适合已经会走之后的精调阶段
+    # 线速度跟踪: exp(-‖v_cmd - v_xy‖² / σ²)
+    # σ=0.25*v_cmd ≈ 0.25~0.5, 取0.5容忍初期较大跟踪误差
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_yaw_frame_exp,
         weight=1.5,
         params={"command_name": "base_velocity", "std": 0.5},
     )
+    # 偏航角速度跟踪: exp(-|ω_cmd - ω|² / σ²)
     track_ang_vel_z_exp = RewTerm(
         func=mdp.track_ang_vel_z_world_exp,
         weight=0.75,
         params={"command_name": "base_velocity", "std": 0.5},
     )
 
+    # 存活奖励: 不摔倒就给保底信号，鼓励探索期保持站立
+    alive = RewTerm(func=mdp.is_alive, weight=0.5)
+
     # ─────────────────────────────────────────────
-    # 稳定性约束  Stability
+    # 2. 惩罚项 — 稳定性  Stability penalties
     # ─────────────────────────────────────────────
 
-    # 惩罚 z 向线速度：防止策略靠上下蹦来"作弊"速度奖励
-    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-1.0)
+    # 惩罚z向弹跳: 防止策略靠上下蹦"作弊"
+    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
 
-    # 惩罚横滚/俯仰角速度（动态）
-    # 权重小于 flat_orientation 是合理的：姿态角比角速度更容易观测和约束
+    # 惩罚机身偏离默认高度 0.30m
+    base_height_l2 = RewTerm(func=mdp.base_height_l2, weight=-0.8, params={"target_height": 0.30})
+
+    # 惩罚横滚/俯仰角速度
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
 
-    # 惩罚机身倾斜（静态），用重力向量投影，无万向锁问题
-    # DreamWaQ 使用 -0.2；-1.0 过强，会阻止坡道上的躯干自适应前倾
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-0.1)
+    # 机身倾斜 — 指数形式: exp(-‖g_xy‖² / σ), σ=0.05
+    # 5°→0.99, 10°→0.94, 20°→0.78, 45°→0.37
+    # 用正权重: 奖励平坦姿态, 倾斜时指数衰减
+    flat_orientation_exp = RewTerm(
+        func=mdp.flat_orientation_exp,
+        weight=0.2,
+        params={"sigma": 0.05},
+    )
 
     # ─────────────────────────────────────────────
-    # 效率与平滑  Efficiency & smoothness
+    # 2. 惩罚项 — 效率与平滑  Efficiency & smoothness
     # ─────────────────────────────────────────────
 
-    # 惩罚力矩 L2：防止暴力解，对应能耗
-    dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-1e-4)
+    # L2力矩惩罚: 防止暴力解, 对应能耗
+    dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-2e-4)
 
-    # 惩罚动作一阶差分：直接对应真机控制信号的变化率，sim-to-real 关键项
+    # 动作一阶差分: sim-to-real关键, 抑制高频抖动
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
 
-    # 惩罚动作二阶差分（jerk）：比一阶更严格的平滑约束，减少真机电机冲击
-    action_smoothness = RewTerm(func=mdp.action_smoothness_l2, weight=-0.01)
+    # 动作二阶差分 (jerk): 更严格平滑, 减少电机冲击
+    action_smoothness = RewTerm(func=mdp.action_smoothness_l2, weight=-0.015)
 
     # ─────────────────────────────────────────────
-    # 安全约束  Safety
+    # 2. 惩罚项 — 安全约束  Safety
     # ─────────────────────────────────────────────
 
-    # 惩罚小腿接触地面：防止膝盖跪地步态
+    # 小腿触地: 防止膝盖跪地步态
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
-        weight=-1.0,
+        weight=-0.5,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_calf"),
             "threshold": 1.0,
@@ -244,30 +314,73 @@ class RewardsCfg:
     )
 
     # ─────────────────────────────────────────────
-    # 姿态保持  Pose similarity
+    # 2. 惩罚项 — 关节极限 (soft exponential, 替代 L1 偏离)
     # ─────────────────────────────────────────────
 
-    # 惩罚关节角度偏离默认站姿：防止策略让某条腿长期抬起或关节极端弯曲
-    # 地形阶段降低权重，给坡道姿态适应留空间
-    pose_similarity = RewTerm(
-        func=mdp.pose_similarity_reward,
-        weight=-0.02,
+    # 接近物理极限时指数级惩罚, 远离时≈0
+    joint_pos_limits = RewTerm(
+        func=mdp.joint_pos_limits,
+        weight=-0.5,
+        params={"asset_cfg": SceneEntityCfg("robot")},
     )
 
-    # 摆腿时脚底高度不足惩罚（DreamWaQ-style）：迫使策略主动抬脚，地形适应关键项
+    # ─────────────────────────────────────────────
+    # 3. 先验项 — 步态质量  Gait quality priors
+    # ─────────────────────────────────────────────
+
+    # 对角步态同步 (trot): FL+RR / FR+RL 交替触地
+    # 消除齐跳和滑步, 加速收敛到自然步态
+    trot_gait = RewTerm(
+        func=mdp.trot_gait_reward,
+        weight=0.8,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
+    )
+
+    # 足端滑动惩罚: 支撑相足端水平速度 -> 驱动抬脚
+    foot_slip = RewTerm(
+        func=mdp.foot_slip,
+        weight=-0.03,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot"),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
+        },
+    )
+
+    # 长时间悬空惩罚: 防止3腿/2腿步态
+    prolonged_air = RewTerm(
+        func=mdp.prolonged_air_penalty,
+        weight=-0.5,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
+            "threshold": 0.5,
+        },
+    )
+
+    # 足端接触时间均衡: 惩罚某对脚踩地时间明显长于另一对
+    foot_contact_balance = RewTerm(
+        func=mdp.foot_contact_balance,
+        weight=-0.2,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
+    )
+
+    # ─────────────────────────────────────────────
+    # 3. 先验项 — 姿态保持  Pose priors
+    # ─────────────────────────────────────────────
+
+    # 足端离地高度不足惩罚 (DreamWaQ-style)
     foot_clearance = RewTerm(
         func=mdp.foot_clearance_reward,
-        weight=-0.03,
+        weight=-0.05,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot"),
             "target_height": 0.10,
         },
     )
 
-    # 零速度指令时额外惩罚关节偏离：强制静止时保持默认站姿
+    # 零速度指令时惩罚关节偏离
     stand_still = RewTerm(
         func=mdp.stand_still_penalty,
-        weight=-0.5,
+        weight=-0.1,
         params={"command_name": "base_velocity", "velocity_threshold": 0.1},
     )
 
