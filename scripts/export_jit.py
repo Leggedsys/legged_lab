@@ -3,8 +3,10 @@
 import argparse
 import torch
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--checkpoint", type=str, required=True)
+parser.add_argument("--norm-checkpoint", type=str, default=None, help="Checkpoint with obs_norm_state_dict")
 parser.add_argument("--output", type=str, default=None)
 args_cli = parser.parse_args()
 
@@ -24,9 +26,30 @@ hidden_dims = [s for k, s in sorted((k, state[k].shape[0]) for k in state if "ac
 
 print(f"[INFO] obs_dim={obs_dim}, act_dim={act_dim}, hidden_dims={hidden_dims}")
 
+# Load normalization stats
+norm_state = checkpoint.get("obs_norm_state_dict")
+if norm_state is None and args_cli.norm_checkpoint:
+    print(f"[INFO] Loading norm from: {args_cli.norm_checkpoint}")
+    norm_ckpt = torch.load(args_cli.norm_checkpoint, map_location="cpu", weights_only=False)
+    norm_state = norm_ckpt.get("obs_norm_state_dict")
 
-class PolicyNetwork(torch.nn.Module):
-    def __init__(self, obs_dim, act_dim, hidden_dims):
+mean = norm_state["_mean"].squeeze(0) if norm_state else torch.zeros(obs_dim)
+std = norm_state["_std"].squeeze(0).clamp(min=1e-6) if norm_state else torch.ones(obs_dim)
+print(f"[INFO] norm mean={mean[:3].tolist()}..., std={std[:3].tolist()}...")
+
+
+class RunningNorm(torch.nn.Module):
+    def __init__(self, mean, std):
+        super().__init__()
+        self.register_buffer("mean", mean)
+        self.register_buffer("std", std)
+
+    def forward(self, x):
+        return (x - self.mean) / self.std
+
+
+class NormalizedPolicy(torch.nn.Module):
+    def __init__(self, obs_dim, act_dim, hidden_dims, mean, std):
         super().__init__()
         layers = []
         in_dim = obs_dim
@@ -36,14 +59,15 @@ class PolicyNetwork(torch.nn.Module):
             in_dim = h
         layers.append(torch.nn.Linear(in_dim, act_dim))
         self.actor = torch.nn.Sequential(*layers)
+        self.normalizer = RunningNorm(mean, std)
 
-    def forward(self, obs):
-        return self.actor(obs)
+    def forward(self, x):
+        return self.actor(self.normalizer(x))
 
 
-model = PolicyNetwork(obs_dim, act_dim, hidden_dims)
+model = NormalizedPolicy(obs_dim, act_dim, hidden_dims, mean, std)
 actor_state = {k: v for k, v in state.items() if k.startswith("actor.")}
-model.load_state_dict(actor_state)
+model.load_state_dict(actor_state, strict=False)
 model.eval()
 
 example = torch.randn(1, obs_dim)
