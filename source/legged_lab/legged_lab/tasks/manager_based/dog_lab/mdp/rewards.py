@@ -146,3 +146,60 @@ def action_smoothness_l2(env: ManagerBasedRLEnv) -> torch.Tensor:
     env._smooth_prev2 = prev.clone()
 
     return torch.sum(torch.square(jerk), dim=1)
+
+
+def standup_height_delta(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Reward per-step increase in body height: max(0, h_t - h_{t-1}).
+
+    Positive when the body is rising, zero when stable or falling.
+    This is the KEY reward for standup recovery — it guides the policy
+    through the sequence: flip → push → rise → stand.
+
+    Apply with positive weight.  At episode start, prev_height is set
+    to the current height so the first-step delta is always 0.
+    """
+    asset = env.scene["robot"]
+    current_height = asset.data.root_pos_w[:, 2]  # (N,)
+
+    if not hasattr(env, "_prev_body_height"):
+        env._prev_body_height = current_height.clone()
+
+    delta = current_height - env._prev_body_height
+    env._prev_body_height = current_height.clone()
+
+    return torch.clamp(delta, min=0.0)  # (N,) — only reward rising
+
+
+def standup_upright_bonus(
+    env: ManagerBasedRLEnv,
+    height_threshold: float = 0.20,
+    tilt_threshold: float = 0.95,
+    hold_steps: int = 50,
+) -> torch.Tensor:
+    """Large bonus when the robot achieves stable standing.
+
+    Triggered when:
+      1. body height > height_threshold (e.g. 0.20 m)
+      2. |g · z| > tilt_threshold (e.g. 0.95 = cos(18°), nearly upright)
+      3. Held for hold_steps consecutive steps
+
+    Returns 1.0 per env that meets all conditions, 0.0 otherwise.
+    Apply with a large positive weight (e.g. 10.0).
+    """
+    asset = env.scene["robot"]
+    height = asset.data.root_pos_w[:, 2]  # (N,)
+    gravity_z = asset.data.projected_gravity_b[:, 2]  # (N,) — should be ~1 when upright
+
+    tall = height > height_threshold
+    upright = gravity_z > tilt_threshold
+    good = tall & upright  # (N,)
+
+    counter_key = "_standup_good_steps"
+    if not hasattr(env, counter_key):
+        from collections import defaultdict
+        env._standup_good_steps = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
+
+    env._standup_good_steps = env._standup_good_steps + good.long()
+    env._standup_good_steps[~good] = 0  # reset counter when condition breaks
+
+    return (env._standup_good_steps >= hold_steps).float()

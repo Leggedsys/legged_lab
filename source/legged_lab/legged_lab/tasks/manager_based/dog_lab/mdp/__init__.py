@@ -23,6 +23,8 @@ from legged_lab.tasks.manager_based.dog_lab.mdp.rewards import (  # noqa: F401
     stand_still_penalty,
     foot_clearance_reward,
     action_smoothness_l2,
+    standup_height_delta,
+    standup_upright_bonus,
 )
 
 from legged_lab.tasks.manager_based.dog_lab.mdp.symmetry import mirror_obs_action  # noqa: F401

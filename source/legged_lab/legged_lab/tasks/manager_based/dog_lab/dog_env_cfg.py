@@ -129,16 +129,16 @@ class ObservationsCfg:
 class CommandsCfg:
     base_velocity = mdp.UniformVelocityCommandCfg(
         asset_name="robot",
-        resampling_time_range=(4.0, 8.0),
-        rel_standing_envs=0.1,
+        resampling_time_range=(10.0, 10.0),
+        rel_standing_envs=1.0,
         rel_heading_envs=0.0,
         heading_command=False,
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-0.5, 1.5),
-            lin_vel_y=(-0.3, 0.3),
-            ang_vel_z=(-1.0, 1.0),
+            lin_vel_x=(0.0, 0.0),
+            lin_vel_y=(0.0, 0.0),
+            ang_vel_z=(0.0, 0.0),
         ),
     )
 
@@ -223,10 +223,23 @@ class EventCfg:
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "yaw": (-3.14, 3.14)},
+            "pose_range": {"x": (-0.02, 0.02), "y": (-0.02, 0.02), "yaw": (-3.14, 3.14)},
             "velocity_range": {
-                "x": (-0.1, 0.1), "y": (-0.1, 0.1), "z": (-0.1, 0.1),
-                "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (-0.1, 0.1),
+                "x": (-0.3, 0.3), "y": (-0.3, 0.3), "z": (-0.3, 0.3),
+                "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (-0.5, 0.5),
+            },
+        },
+    )
+
+    # 自起: z低+大角度倾斜, 模拟要摔倒的姿态
+    reset_base = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "pose_range": {"x": (-0.02, 0.02), "y": (-0.02, 0.02), "z": (0.08, 0.18), "roll": (-0.6, 0.6), "pitch": (-0.6, 0.6), "yaw": (-3.14, 3.14)},
+            "velocity_range": {
+                "x": (-0.2, 0.2), "y": (-0.2, 0.2), "z": (-0.2, 0.2),
+                "roll": (-0.2, 0.2), "pitch": (-0.2, 0.2), "yaw": (-0.5, 0.5),
             },
         },
     )
@@ -235,8 +248,8 @@ class EventCfg:
         func=mdp.reset_joints_by_scale,
         mode="reset",
         params={
-            "position_range": (0.5, 1.5),
-            "velocity_range": (0.0, 0.0),
+            "position_range": (0.3, 1.8),
+            "velocity_range": (-1.0, 1.0),
         },
     )
 
@@ -247,22 +260,20 @@ class RewardsCfg:
     # 1. 任务奖励  Task rewards
     # ─────────────────────────────────────────────
 
-    # 线速度跟踪: exp(-‖v_cmd - v_xy‖² / σ²)
-    # σ=0.25*v_cmd ≈ 0.25~0.5, 取0.5容忍初期较大跟踪误差
+    # 自起阶段: 关闭速度跟踪, 只关注站住
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_yaw_frame_exp,
-        weight=1.5,
+        weight=0.0,
         params={"command_name": "base_velocity", "std": 0.5},
     )
-    # 偏航角速度跟踪: exp(-|ω_cmd - ω|² / σ²)
     track_ang_vel_z_exp = RewTerm(
         func=mdp.track_ang_vel_z_world_exp,
-        weight=0.75,
+        weight=0.0,
         params={"command_name": "base_velocity", "std": 0.5},
     )
 
-    # 存活奖励: 不摔倒就给保底信号，鼓励探索期保持站立
-    alive = RewTerm(func=mdp.is_alive, weight=0.5)
+    # 存活: 活下来就给小奖励
+    alive = RewTerm(func=mdp.is_alive, weight=0.1)
 
     # ─────────────────────────────────────────────
     # 2. 惩罚项 — 稳定性  Stability penalties
@@ -271,8 +282,14 @@ class RewardsCfg:
     # 惩罚z向弹跳: 防止策略靠上下蹦"作弊"
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
 
-    # 惩罚机身偏离默认高度 0.30m
-    base_height_l2 = RewTerm(func=mdp.base_height_l2, weight=-0.8, params={"target_height": 0.30})
+    # 惩罚机身偏离默认高度 — 基础项
+    base_height_l2 = RewTerm(func=mdp.base_height_l2, weight=-1.0, params={"target_height": 0.30})
+
+    # 高度增量奖励: 奖励每步身高提升, 引导策略"向上爬"
+    standup_height_delta = RewTerm(func=mdp.standup_height_delta, weight=5.0)
+
+    # 成功站立大额奖励: 连续50步高>0.20m且近正立 -> +10.0
+    standup_upright_bonus = RewTerm(func=mdp.standup_upright_bonus, weight=10.0, params={"hold_steps": 50})
 
     # 惩罚横滚/俯仰角速度
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
@@ -282,7 +299,7 @@ class RewardsCfg:
     # 用正权重: 奖励平坦姿态, 倾斜时指数衰减
     flat_orientation_exp = RewTerm(
         func=mdp.flat_orientation_exp,
-        weight=0.2,
+        weight=1.0,
         params={"sigma": 0.05},
     )
 
@@ -332,7 +349,7 @@ class RewardsCfg:
     # 消除齐跳和滑步, 加速收敛到自然步态
     trot_gait = RewTerm(
         func=mdp.trot_gait_reward,
-        weight=0.8,
+        weight=0.3,
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
     )
 
@@ -346,13 +363,13 @@ class RewardsCfg:
         },
     )
 
-    # 长时间悬空惩罚: 防止3腿/2腿步态
+    # 长时间悬空惩罚: 自起阶段放宽
     prolonged_air = RewTerm(
         func=mdp.prolonged_air_penalty,
-        weight=-0.5,
+        weight=-0.2,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
-            "threshold": 0.5,
+            "threshold": 2.0,
         },
     )
 
@@ -380,8 +397,14 @@ class RewardsCfg:
     # 零速度指令时惩罚关节偏离
     stand_still = RewTerm(
         func=mdp.stand_still_penalty,
-        weight=-0.1,
+        weight=-0.2,
         params={"command_name": "base_velocity", "velocity_threshold": 0.1},
+    )
+
+    # 始终奖励靠近默认站姿, 给策略一个"安全锚点"
+    pose_similarity = RewTerm(
+        func=mdp.pose_similarity_reward,
+        weight=-0.05,
     )
 
 
@@ -395,15 +418,16 @@ class TerminationsCfg:
             "threshold": 1.0,
         },
     )
-    bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 0.9})
-    root_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.08})
-    # 任意一只脚连续离地超过 1.5 s 即终止：正常对角步态摆腿约 0.2-0.3 s，
-    # 不会误触发；三条腿步态中悬空脚持续数秒，必然触发。
+    # 放宽: limit_angle=0.3 → cos⁻¹(0.3)≈72°, 完全翻倒才终止
+    bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 0.3})
+    # 放宽: 不允许贴地, 强迫策略保持最低高度
+    root_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.04})
+    # 摔倒自起阶段关闭长时间悬空终止: PROLONGED_AIR_THRESHOLD=5.0
     prolonged_air = DoneTerm(
         func=mdp.foot_prolonged_air_termination,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
-            "threshold": 1.0,
+            "threshold": 5.0,
         },
     )
 
